@@ -1,8 +1,25 @@
-#![allow(clippy::all)]
+#![forbid(unsafe_code)]
+#![allow(clippy::too_many_arguments)]
 
 use glam::{Vec2, Vec3};
 
 mod generated;
+pub(crate) mod ordered_vec;
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum FaceKind {
+    Triangle,
+    Quad,
+}
+
+impl FaceKind {
+    fn num_vertices(&self) -> usize {
+        match self {
+            FaceKind::Triangle => 3,
+            FaceKind::Quad => 4,
+        }
+    }
+}
 
 /// The interface by which mikktspace interacts with your geometry.
 pub trait Geometry {
@@ -10,7 +27,7 @@ pub trait Geometry {
     fn num_faces(&self) -> usize;
 
     /// Returns the number of vertices of a face.
-    fn num_vertices_of_face(&self, face: usize) -> usize;
+    fn num_vertices_of_face(&self, face: usize) -> FaceKind;
 
     /// Returns the position of a vertex.
     fn position(&self, face: usize, vert: usize) -> [f32; 3];
@@ -55,23 +72,22 @@ pub trait Geometry {
 ///
 /// Returns `false` if the geometry is unsuitable for tangent generation including,
 /// but not limited to, lack of vertices.
-pub fn generate_tangents<I: Geometry>(geometry: &mut I) -> bool {
-    unsafe { generated::genTangSpace(geometry, 180.0) }
+pub fn generate_tangents(geometry: &mut impl Geometry) -> bool {
+    generated::genTangSpace(geometry, 180.0)
 }
 
-fn get_position<I: Geometry>(geometry: &mut I, index: usize) -> Vec3 {
+fn get_position(geometry: &impl Geometry, index: usize) -> Vec3 {
     let (face, vert) = index_to_face_vert(index);
     geometry.position(face, vert).into()
 }
 
-fn get_tex_coord<I: Geometry>(geometry: &mut I, index: usize) -> Vec3 {
+fn get_tex_coord(geometry: &impl Geometry, index: usize) -> Vec3 {
     let (face, vert) = index_to_face_vert(index);
     let tex_coord: Vec2 = geometry.tex_coord(face, vert).into();
-    let val = tex_coord.extend(1.0);
-    val
+    tex_coord.extend(1.0)
 }
 
-fn get_normal<I: Geometry>(geometry: &mut I, index: usize) -> Vec3 {
+fn get_normal(geometry: &impl Geometry, index: usize) -> Vec3 {
     let (face, vert) = index_to_face_vert(index);
     geometry.normal(face, vert).into()
 }
@@ -81,5 +97,6 @@ fn index_to_face_vert(index: usize) -> (usize, usize) {
 }
 
 fn face_vert_to_index(face: usize, vert: usize) -> usize {
+    assert!(vert < 4);
     face << 2 | vert & 0x3
 }
